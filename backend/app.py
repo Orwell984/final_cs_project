@@ -2,19 +2,33 @@ import os
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pymysql
+import json
+from flask import Response
+from sqlalchemy import create_engine, text
+
+app = Flask(__name__)
+CORS(app)
 
 # -------- DB helpers (no classes, just functions) --------
-def get_conn():
-    """
-    TODO (student):
-      - Create and return a MySQL connection using environment variables:
-        MYSQL_HOST, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DATABASE
-      - Use pymysql.connect(...) with DictCursor and autocommit=True
-    """
-    # Example (do NOT implement here in the starter):
-    # return pymysql.connect(host=..., user=..., password=..., database=...,
-    #                        cursorclass=pymysql.cursors.DictCursor, autocommit=True)
-    return None  # placeholder
+DB_HOST = os.getenv("DB_HOST", "db")       
+DB_PORT = os.getenv("DB_PORT", "3306")
+DB_USER = os.getenv("DB_USER", "user")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "pass")
+DB_NAME = os.getenv("DB_NAME", "groceries")
+
+DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+engine = create_engine(
+    DB_URL,
+    pool_pre_ping=True,        # revalida conexiones muertas
+    pool_recycle=1800,         # evita timeouts del lado MySQL
+    future=True
+)
+
+def dynamic_function(command):
+    com = f" {command}"
+    with engine.connect() as conn:
+        result=conn.execute(text(com)).mappings().all()
+    return [dict(row) for row in result]
 
 
 def get_or_create_dept_id(dept_name):
@@ -177,6 +191,14 @@ def api_origins():
         "message": "GET /api/origins should return a list like: [{id, code}, ...] ordered by code."
     })
 
+@app.route('/v1/data/all')
+def test(): 
+    command = "SELECT * FROM products"
+    data = dynamic_function(command)
+    try:
+        return Response(json.dumps(data, default=str), mimetype='application/json')
+    except Exception as e:
+        return Response(json.dumps({"status": "error", "message": str(e)}), mimetype='application/json', status=500)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
