@@ -1,35 +1,41 @@
--- TODO (student):
--- This file should create a simple relational schema for a grocery inventory.
--- Suggested steps (write the real SQL yourself):
+Create database if not exists groceries;
+Use groceries;
 
--- 1) Create database and (optionally) a user:
---    CREATE DATABASE groceries;
---    CREATE USER 'user'@'%' IDENTIFIED BY 'pass';
---    GRANT ALL PRIVILEGES ON groceries.* TO 'user'@'%';
---    USE groceries;
+DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS dept;
+DROP TABLE IF EXISTS origin;
 
--- 2) Create reference tables:
---    Table dept:
---      id INT AUTO_INCREMENT PRIMARY KEY
---      name VARCHAR(50) NOT NULL
---
---    Table origin:
---      id INT AUTO_INCREMENT PRIMARY KEY
---      code VARCHAR(3) NOT NULL
---
--- 3) Create products table that references dept and origin:
---      id INT AUTO_INCREMENT PRIMARY KEY
---      name VARCHAR(100) NOT NULL
---      dept_id INT NOT NULL
---      origin_id INT NOT NULL
---      price DECIMAL(10,2) NOT NULL
---      stock INT NOT NULL
---      FOREIGN KEY (dept_id) REFERENCES dept(id)
---      FOREIGN KEY (origin_id) REFERENCES origin(id)
+CREATE TABLE IF NOT EXISTS dept (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL
+);
 
--- 4) (Optional) Insert some seed rows:
---    INSERT INTO dept (name) VALUES ('Dairy'), ('Produce'), ... ;
---    INSERT INTO origin (code) VALUES ('MX'), ('USA'), ... ;
---    INSERT INTO products (name, dept_id, origin_id, price, stock) VALUES (...);
 
--- Keep it simple. Avoid complex constraints or validations.
+CREATE TABLE IF NOT EXISTS origin (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(3) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+     dept_id INT NOT NULL
+     origin_id INT NOT NULL
+     price DECIMAL(10,2) NOT NULL
+     stock INT NOT NULL
+     FOREIGN KEY (dept_id) REFERENCES dept(id),
+     FOREIGN KEY (dept_id) REFERENCES dept(id));
+
+
+INSERT INTO dept (name) VALUES
+('Beverages'),
+('Bread/Bakery'),
+('Canned/Jarred Goods'),
+('Dairy')
+;
+INSERT INTO origin (name) VALUES
+('USA'),
+('ARG'),
+('MXN'),
+('CAN')
+;
