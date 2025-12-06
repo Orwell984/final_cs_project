@@ -48,6 +48,7 @@ def root():
 
 
 # -------- REST API (only instructional messages here)(app.routes) --------
+
 @app.get("/api/items")
 def api_list_items():
     sql = """
@@ -104,7 +105,7 @@ def api_create_item():
         (SELECT id FROM origin WHERE name='{origin}');
     """)
 
-    # Obtener IDs de dept y origin
+    
     dept_id = dynamic_function(f"SELECT id FROM dept WHERE name='{dept}'")[0]["id"]
     origin_id = dynamic_function(f"SELECT id FROM origin WHERE name='{origin}'")[0]["id"]
 
@@ -129,8 +130,6 @@ def api_create_item():
     """)
 
     return Response(json.dumps({"id": new_id}, default=str), mimetype='application/json', status=201)
-
-
 
 
 @app.put("/api/items/<int:product_id>")
@@ -175,16 +174,13 @@ def api_update_item(product_id):
 
 @app.delete("/api/items/<int:product_id>")
 def api_delete_item(product_id):
-    return jsonify({
-        "message": "DELETE /api/items/<id> should delete the product and return a confirmation.",
-        "id_received": product_id
-    })
+    dynamic_function(f"DELETE FROM products WHERE id={product_id}")
+    return Response(json.dumps({"deleted": True}, default=str), mimetype='application/json')
 
 @app.get("/api/departments")
 def api_departments():
-    return jsonify({
-        "message": "GET /api/departments should return a list like: [{id, name}, ...] ordered by name."
-    })
+    data = dynamic_function("SELECT id, name FROM dept ORDER BY name")
+    return Response(json.dumps(data, default=str), mimetype='application/json')
 
 @app.get("/api/origins")
 def api_origins():
