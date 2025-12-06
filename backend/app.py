@@ -184,9 +184,9 @@ def api_departments():
 
 @app.get("/api/origins")
 def api_origins():
-    return jsonify({
-        "message": "GET /api/origins should return a list like: [{id, code}, ...] ordered by code."
-    })
+    sql = "SELECT id, name AS code FROM origin ORDER BY name"
+    data = dynamic_function(sql)
+    return Response(json.dumps(data, default=str), mimetype='application/json')
 
 @app.route('/v1/data/all')
 def test(): 
