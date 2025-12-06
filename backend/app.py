@@ -4,6 +4,7 @@ from flask_cors import CORS
 import pymysql
 
 # -------- DB helpers (no classes, just functions) --------
+<<<<<<< Updated upstream
 def get_conn():
     """
     TODO (student):
@@ -15,9 +16,54 @@ def get_conn():
     # return pymysql.connect(host=..., user=..., password=..., database=...,
     #                        cursorclass=pymysql.cursors.DictCursor, autocommit=True)
     return None  # placeholder
+=======
+DB_HOST = os.getenv("DB_HOST", "db")       
+DB_PORT = os.getenv("DB_PORT", "3306")
+DB_USER = os.getenv("DB_USER", "user")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "pass")
+DB_NAME = os.getenv("DB_NAME", "groceries")
+
+DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+engine = create_engine(
+    DB_URL,
+    pool_pre_ping=True,        # revalida conexiones muertas
+    pool_recycle=1800,         # evita timeouts del lado MySQL
+    future=True
+)
+
+def get_conn():
+    return pymysql.connect(
+        host=DB_HOST,
+        port=int(DB_PORT),
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        cursorclass=pymysql.cursors.DictCursor,
+        autocommit=True
+    )
+
+
+
+def dynamic_function(command):
+    com = f" {command}"
+    with engine.connect() as conn:
+        result=conn.execute(text(com)).mappings().all()
+    return [dict(row) for row in result]
+>>>>>>> Stashed changes
 
 
 def get_or_create_dept_id(dept_name):
+    conn = get_conn()
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM dept WHERE name=%s LIMIT 1", (dept_name,))
+        row = cur.fetchone()
+        if row:
+            return row["id"]
+        
+        cur.execute("INSERT INTO dept (name) VALUES (%s)", (dept_name,))
+    return cur.lastrowid
+
+
     """
     TODO (student):
       - Try to SELECT id FROM dept WHERE name=%s LIMIT 1
@@ -36,6 +82,19 @@ def get_or_create_dept_id(dept_name):
 
 
 def get_or_create_origin_id(origin_code):
+
+    if not origin_code:
+        origin_code = 'MX'
+    
+    conn = get_conn()
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM origin WHERE name=%s LIMIT 1", (origin_code,))
+        row = cur.fetchone()
+    if row:
+        return row["id"]
+    cur.execute("INSERT INTO origin (name) VALUES (%s)", (origin_code,))
+    return cur.lastrowid
+
     """
     TODO (student):
       - Default origin_code to 'MX' if missing
@@ -46,6 +105,19 @@ def get_or_create_origin_id(origin_code):
 
 
 def fetch_all_products():
+
+    conn = get_conn()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT p.id, p.name, d.name AS department, o.name AS origin, p.price, p.stock
+            FROM products p
+            JOIN dept d ON p.dept_id = d.id
+            JOIN origin o ON p.origin_id = o.id
+            ORDER BY p.id;
+        """)
+        rows = cur.fetchall()
+        return [dict(row) for row in rows]
+
     """
     TODO (student):
       - Return a list of products joining dept and origin so the frontend sees:
@@ -61,6 +133,22 @@ def fetch_all_products():
 
 
 def fetch_product(product_id):
+
+    conn = get_conn()
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT p.id, p.name, d.name AS department, o.name AS origin, p.price, p.stock
+            FROM products p
+            JOIN dept d ON p.dept_id = d.id
+            JOIN origin o ON p.origin_id = o.id
+            WHERE p.id = %s;
+        """, (product_id,))
+        row = cur.fetchone()
+        if row:
+            return dict(row)
+        return None
+    
+
     """
     TODO (student):
       - Return a single product by id with the same join as above
@@ -70,6 +158,19 @@ def fetch_product(product_id):
 
 
 def insert_product(name, department, origin, price, stock):
+
+    dept_id = get_or_create_dept_id(department)
+    origin_id = get_or_create_origin_id(origin)
+
+    conn = get_conn()
+    with conn.cursor() as cur:
+        cur.execute(""" 
+            INSERT INTO products (name, dept_id, origin_id, price, stock)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (name, dept_id, origin_id, price, stock))
+    return cur.lastrowid
+
+
     """
     TODO (student):
       - Use get_or_create_dept_id and get_or_create_origin_id to get foreign keys
@@ -80,6 +181,33 @@ def insert_product(name, department, origin, price, stock):
 
 
 def update_product(product_id, name, department, origin, price, stock):
+    conn = get_conn()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id FROM dept WHERE name=%s", (department,))
+
+    dept_row = cursor.fetchone()
+    if not dept_row:
+        return 0 
+    dept_id = dept_row[0]
+
+    cursor.execute("SELECT id FROM origins WHERE name=%s", (origin,))
+    origin_row = cursor.fetchone()
+    if not origin_row:
+        conn.close()
+        return 0
+    origin_id = origin_row[0]
+
+    sql = """
+        UPDATE products SET name=%s, dept_id=%s, origin_id=%s, price=%s, stock=%s WHERE id=%s
+    """
+
+    cursor.execute(sql, (name, dept_id, origin_id, price, stock, product_id))
+    conn.commit()
+
+    affected = cursor.rowcount
+    return affected
+
     """
     TODO (student):
       - Resolve dept_id/origin_id
@@ -89,7 +217,17 @@ def update_product(product_id, name, department, origin, price, stock):
     return 0  # placeholder
 
 
+
 def delete_product(product_id):
+    conn = get_conn()
+
+    with conn.cursor() as cursor:
+        sql = "DELETE FROM products WHERE id=%s"
+        affected = cursor.execute(sql, (product_id,))
+  
+    return affected
+
+
     """
     TODO (student):
       - DELETE FROM products WHERE id=%s
