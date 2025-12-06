@@ -126,13 +126,17 @@ CORS(app)  # allow front-end JS to call API
 def root():
     return send_from_directory("static", "index.html")
 
-
+#.
 # -------- REST API (only instructional messages here) --------
 @app.get("/api/items")
 def api_list_items():
-    return jsonify({
-        "message": "GET /api/items should return a list of products joined with dept.name and origin.code."
-    })
+    return jsonify:
+    def db_init():
+    try:
+        create_products_table()
+        return Response(json.dumps({"status": "ok", "message": "products table ensured"}), mimetype='application/json')
+    except Exception as e:
+        return Response(json.dumps({"status": "error", "message": str(e)}), mimetype='application/json', status=500)
 
 @app.get("/api/items/<int:product_id>")
 def api_get_item(product_id):
