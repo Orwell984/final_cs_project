@@ -23,7 +23,8 @@ engine = create_engine(
     pool_recycle=1800,         
     future=True
 )
-# general function to run any SQL command
+
+# General function to run any SQL command
 def dynamic_function(command, params=None):
     with engine.connect() as conn:
         result = conn.execute(text(command), params or {})
@@ -172,21 +173,27 @@ def api_update_item(product_id):
 
     return Response(json.dumps({"updated": True}, default=str), mimetype='application/json')
 
+
 @app.delete("/api/items/<int:product_id>")
 def api_delete_item(product_id):
     dynamic_function(f"DELETE FROM products WHERE id={product_id}")
     return Response(json.dumps({"deleted": True}, default=str), mimetype='application/json')
+
 
 @app.get("/api/departments")
 def api_departments():
     data = dynamic_function("SELECT id, name FROM dept ORDER BY name")
     return Response(json.dumps(data, default=str), mimetype='application/json')
 
-@app.get("/api/origins")
+
+app.get("/api/origins")
 def api_origins():
     sql = "SELECT id, name AS code FROM origin ORDER BY name"
     data = dynamic_function(sql)
     return Response(json.dumps(data, default=str), mimetype='application/json')
+
+
+#Check information route
 
 @app.route('/v1/data/all')
 def test(): 
