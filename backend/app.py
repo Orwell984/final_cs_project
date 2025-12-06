@@ -1,7 +1,14 @@
 import os
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, Response, engine, text, request, row, jsonify, send_from_directory
+import json
 from flask_cors import CORS
 import pymysql
+
+def fetch_all_products_from_db(command):
+    com = f"{command}"
+    with engine.connect() as conn:
+        result=conn.execute(text(com)).mappings().all()
+    return [dict(row) for row in result]
 
 # -------- DB helpers (no classes, just functions) --------
 def get_conn():
@@ -128,11 +135,15 @@ def root():
 
 
 # -------- REST API (only instructional messages here) --------
-@app.get("/api/items")
+
+import json
+from flask import Flask, Response, request
+@app.route("/api/items", methods=["GET"])
 def api_list_items():
-    return jsonify({
-        "message": "GET /api/items should return a list of products joined with dept.name and origin.code."
-    })
+    command = request.args.get('command', '')
+    results = fetch_all_products_from_db(command) #"GET /api/items should return a list of products joined with dept.name and origin.code".
+
+
 
 @app.get("/api/items/<int:product_id>")
 def api_get_item(product_id):
@@ -178,6 +189,15 @@ def api_origins():
     })
 
 
-if __name__ == "__main__":
+@app.route("/api/items", methods=["GET"])
+def api_list_items():
+    command = request.args.get('command', '')
+    results = fetch_all_products_from_db(command)
+    json_data = json.dumps(results) 
+    return Response(json_data, mimetype="application/json")
+
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port)
+
+
+
