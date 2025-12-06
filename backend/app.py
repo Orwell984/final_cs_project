@@ -1,6 +1,5 @@
 import os
-from flask import Flask, Response, engine, text, request, row, jsonify, send_from_directory
-import json
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import pymysql
 import json
@@ -9,12 +8,6 @@ from sqlalchemy import create_engine, text
 
 app = Flask(__name__)
 CORS(app)
-
-def fetch_all_products_from_db(command):
-    com = f"{command}"
-    with engine.connect() as conn:
-        result=conn.execute(text(com)).mappings().all()
-    return [dict(row) for row in result]
 
 # -------- DB helpers (no classes, just functions) --------
 DB_HOST = os.getenv("DB_HOST", "db")       
@@ -26,116 +19,22 @@ DB_NAME = os.getenv("DB_NAME", "groceries")
 DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 engine = create_engine(
     DB_URL,
-    pool_pre_ping=True,        # revalida conexiones muertas
-    pool_recycle=1800,         # evita timeouts del lado MySQL
+    pool_pre_ping=True,        
+    pool_recycle=1800,         
     future=True
 )
-
-def dynamic_function(command):
-    com = f" {command}"
+# general function to run any SQL command
+def dynamic_function(command, params=None):
     with engine.connect() as conn:
-        result=conn.execute(text(com)).mappings().all()
-    return [dict(row) for row in result]
+        result = conn.execute(text(command), params or {})
 
-
-def get_or_create_dept_id(dept_name):
-    """
-    TODO (student):
-      - Try to SELECT id FROM dept WHERE name=%s LIMIT 1
-      - If exists, return that id
-      - Else INSERT INTO dept(name) VALUES(%s) and return lastrowid
-    """
-    # Pseudocode only:
-    # conn = get_conn()
-    # with conn.cursor() as cur:
-    #   cur.execute("SELECT id FROM dept WHERE name=%s LIMIT 1", (dept_name,))
-    #   row = cur.fetchone()
-    #   if row: return row["id"]
-    #   cur.execute("INSERT INTO dept (name) VALUES (%s)", (dept_name,))
-    #   return cur.lastrowid
-    return None  # placeholder
-
-
-def get_or_create_origin_id(origin_code):
-    """
-    TODO (student):
-      - Default origin_code to 'MX' if missing
-      - SELECT id FROM origin WHERE code=%s LIMIT 1
-      - If exists, return it; otherwise INSERT and return lastrowid
-    """
-    return None  # placeholder
-
-
-def fetch_all_products():
-    """
-    TODO (student):
-      - Return a list of products joining dept and origin so the frontend sees:
-        id, name, department (dept.name), origin (origin.code), price, stock
-      - SQL idea:
-        SELECT p.id, p.name, d.name AS department, o.code AS origin, p.price, p.stock
-        FROM products p
-        JOIN dept d ON p.dept_id = d.id
-        JOIN origin o ON p.origin_id = o.id
-        ORDER BY p.id;
-    """
-    return []  # placeholder
-
-
-def fetch_product(product_id):
-    """
-    TODO (student):
-      - Return a single product by id with the same join as above
-      - If not found, return None
-    """
-    return None  # placeholder
-
-
-def insert_product(name, department, origin, price, stock):
-    """
-    TODO (student):
-      - Use get_or_create_dept_id and get_or_create_origin_id to get foreign keys
-      - INSERT INTO products (name, dept_id, origin_id, price, stock) VALUES (...)
-      - Return new product id (lastrowid)
-    """
-    return None  # placeholder
-
-
-def update_product(product_id, name, department, origin, price, stock):
-    """
-    TODO (student):
-      - Resolve dept_id/origin_id
-      - UPDATE products SET ... WHERE id=%s
-      - Return affected rows count
-    """
-    return 0  # placeholder
-
-
-def delete_product(product_id):
-    """
-    TODO (student):
-      - DELETE FROM products WHERE id=%s
-      - Return affected rows count
-    """
-    return 0  # placeholder
-
-
-# --- Helpers to list departments and origins ---
-def fetch_departments():
-    """
-    TODO (student):
-      - SELECT id, name FROM dept ORDER BY name;
-      - Return list of dicts
-    """
-    return []  # placeholder
-
-
-def fetch_origins():
-    """
-    TODO (student):
-      - SELECT id, code FROM origin ORDER BY code;
-      - Return list of dicts
-    """
-    return []  # placeholder
+        
+        try:
+            rows = result.mappings().all()
+            return [dict(r) for r in rows]
+        except Exception:
+            conn.commit()
+            return {"status": "ok"}
 
 
 # -------- Flask app --------
@@ -148,16 +47,12 @@ def root():
     return send_from_directory("static", "index.html")
 
 
-# -------- REST API (only instructional messages here) --------
-
-import json
-from flask import Flask, Response, request
-@app.route("/api/items", methods=["GET"])
+# -------- REST API (only instructional messages here)(app.routes) --------
+@app.get("/api/items")
 def api_list_items():
-    command = request.args.get('command', '')
-    results = fetch_all_products_from_db(command) #"GET /api/items should return a list of products joined with dept.name and origin.code".
-
-
+    return jsonify({
+        "message": "GET /api/items should return a list of products joined with dept.name and origin.code."
+    })
 
 @app.get("/api/items/<int:product_id>")
 def api_get_item(product_id):
@@ -168,20 +63,94 @@ def api_get_item(product_id):
 
 @app.post("/api/items")
 def api_create_item():
-    data = request.get_json(force=True)
-    return jsonify({
-        "message": "POST /api/items should insert a product (resolving dept_id and origin_id) and return the new id.",
-        "payload_received": data
-    }), 201
+    d = request.get_json(force=True)
+
+    name = d["name"]
+    dept = d["department"]
+    origin = d.get("origin", "MX")
+    price = d["price"]
+    stock = d["stock"]
+
+    dynamic_function(f"""
+        INSERT INTO dept(name)
+        SELECT '{dept}' WHERE NOT EXISTS
+        (SELECT id FROM dept WHERE name='{dept}');
+    """)
+
+    dynamic_function(f"""
+        INSERT INTO origin(name)
+        SELECT '{origin}' WHERE NOT EXISTS
+        (SELECT id FROM origin WHERE name='{origin}');
+    """)
+
+    # Obtener IDs de dept y origin
+    dept_id = dynamic_function(f"SELECT id FROM dept WHERE name='{dept}'")[0]["id"]
+    origin_id = dynamic_function(f"SELECT id FROM origin WHERE name='{origin}'")[0]["id"]
+
+    new_id = dynamic_function("""
+        SELECT COALESCE(
+            (
+                SELECT t1.id + 1
+                FROM products t1
+                LEFT JOIN products t2
+                    ON t1.id + 1 = t2.id
+                WHERE t2.id IS NULL
+                ORDER BY t1.id
+                LIMIT 1
+            ),
+            1
+        ) AS new_id;
+    """)[0]["new_id"]
+
+    dynamic_function(f"""
+        INSERT INTO products(id, name, dept_id, origin_id, price, stock)
+        VALUES ({new_id}, '{name}', {dept_id}, {origin_id}, {price}, {stock});
+    """)
+
+    return Response(json.dumps({"id": new_id}, default=str), mimetype='application/json', status=201)
+
+
+
 
 @app.put("/api/items/<int:product_id>")
 def api_update_item(product_id):
-    data = request.get_json(force=True)
-    return jsonify({
-        "message": "PUT /api/items/<id> should update the product (name, department->dept_id, origin->origin_id, price, stock).",
-        "id_received": product_id,
-        "payload_received": data
-    })
+    d = request.get_json(force=True)
+
+    name = d["name"]
+    dept = d["department"]
+    origin = d.get("origin", "MX")
+    price = d["price"]
+    stock = d["stock"]
+
+
+    dynamic_function(f"""
+        INSERT INTO dept(name)
+        SELECT '{dept}' WHERE NOT EXISTS
+        (SELECT id FROM dept WHERE name='{dept}');
+    """)
+
+
+    dynamic_function(f"""
+        INSERT INTO origin(name)
+        SELECT '{origin}' WHERE NOT EXISTS
+        (SELECT id FROM origin WHERE name='{origin}');
+    """)
+
+    dept_id = dynamic_function(f"SELECT id FROM dept WHERE name='{dept}'")[0]["id"]
+    origin_id = dynamic_function(f"SELECT id FROM origin WHERE name='{origin}'")[0]["id"]
+
+    
+    dynamic_function(f"""
+        UPDATE products
+        SET name='{name}',
+            dept_id={dept_id},
+            origin_id={origin_id},
+            price={price},
+            stock={stock}
+        WHERE id={product_id};
+    """)
+
+    return Response(json.dumps({"updated": True}, default=str), mimetype='application/json')
 
 @app.delete("/api/items/<int:product_id>")
 def api_delete_item(product_id):
@@ -211,13 +180,6 @@ def test():
     except Exception as e:
         return Response(json.dumps({"status": "error", "message": str(e)}), mimetype='application/json', status=500)
 
-@app.route("/api/items", methods=["GET"])
-def api_list_items():
-    command = request.args.get('command', '')
-    results = fetch_all_products_from_db(command)
-    json_data = json.dumps(results) 
-    return Response(json_data, mimetype="application/json")
-
+if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
     app.run(host="0.0.0.0", port=port)
-    
