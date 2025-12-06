@@ -50,16 +50,37 @@ def root():
 # -------- REST API (only instructional messages here)(app.routes) --------
 @app.get("/api/items")
 def api_list_items():
-    return jsonify({
-        "message": "GET /api/items should return a list of products joined with dept.name and origin.code."
-    })
+    sql = """
+        SELECT p.id, p.name,
+               d.name AS department,
+               o.name AS origin,
+               p.price, p.stock
+        FROM products p
+        JOIN dept d ON p.dept_id = d.id
+        JOIN origin o ON p.origin_id = o.id
+        ORDER BY p.id;
+    """
+    data = dynamic_function(sql)
+    return Response(json.dumps(data, default=str), mimetype='application/json')
+
 
 @app.get("/api/items/<int:product_id>")
 def api_get_item(product_id):
-    return jsonify({
-        "message": "GET /api/items/<id> should return a single product (with department and origin) or 404 if not found.",
-        "id_received": product_id
-    })
+    sql = f"""
+        SELECT p.id, p.name,
+               d.name AS department,
+               o.name AS origin,
+               p.price, p.stock
+        FROM products p
+        JOIN dept d ON p.dept_id = d.id
+        JOIN origin o ON p.origin_id = o.id
+        WHERE p.id = {product_id}
+        LIMIT 1;
+    """
+    data = dynamic_function(sql)
+    if not data:
+        return Response(json.dumps({"error": "not found"}), mimetype='application/json', status=404)
+    return Response(json.dumps(data[0], default=str), mimetype='application/json')
 
 @app.post("/api/items")
 def api_create_item():
