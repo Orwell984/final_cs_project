@@ -109,7 +109,7 @@ def api_create_item():
     
     dept_id = dynamic_function(f"SELECT id FROM dept WHERE name='{dept}'")[0]["id"]
     origin_id = dynamic_function(f"SELECT id FROM origin WHERE name='{origin}'")[0]["id"]
-
+#i used AI to solve a little problem here that the products were using the last id instead of one available
     new_id = dynamic_function("""
         SELECT COALESCE(
             (
@@ -186,11 +186,12 @@ def api_departments():
     return Response(json.dumps(data, default=str), mimetype='application/json')
 
 
-app.get("/api/origins")
+@app.get("/api/origins")
 def api_origins():
     sql = "SELECT id, name AS code FROM origin ORDER BY name"
     data = dynamic_function(sql)
     return Response(json.dumps(data, default=str), mimetype='application/json')
+
 
 
 #Check information route
